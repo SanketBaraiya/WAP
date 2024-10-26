@@ -1,0 +1,10 @@
+amcache:	C:\Users\SanketBaraiya\Downloads\Temp\JEE_Administrator_2024.10.05_15.44.03
+cat:	{'log', 'user_virtual', 'os', 'user_act', 'software', 'malware', 'user_network', 'web', 'network', 'user_file', 'execution', 'comm', 'autoruns', 'users', 'storage', 'device', 'user_config'}
+flush:	False
+multiple:	None
+ntuser:	C:\Users\SanketBaraiya\Downloads\Temp\JEE_Administrator_2024.10.05_15.44.03
+reportdir:	C:\Users\SanketBaraiya\Downloads\Temp\WAP\lib\RegRipper\Registry_Hives
+rr:	C:\Users\SanketBaraiya\Downloads\Temp\WAP\lib\RegRipper
+system:	C:\Users\SanketBaraiya\Downloads\Temp\JEE_Administrator_2024.10.05_15.44.03\Saved_Files\Registry_Hives\C\Windows\system32\config
+usrclass:	C:\Users\SanketBaraiya\Downloads\Temp\JEE_Administrator_2024.10.05_15.44.03
+---- Processing the LOG category

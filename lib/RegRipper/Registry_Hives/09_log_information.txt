@@ -1,0 +1,73 @@
+=========================================================================================================
+Logging Information
+=========================================================================================================
+
+auditpol v.20200515
+(Security) Get audit policy from the Security hive file
+
+auditpol
+Policy\PolAdtEv
+LastWrite Time 2023-05-20 06:12:27Z
+
+Possible Win10(1607+)/Win2016
+System:Security State Change                       S/F  
+System:Security System Extension                   S/F  
+System:System Integrity                            S/F  
+System:IPsec Driver                                S/F  
+System:Other System Events                         S/F  
+Logon/Logoff:Logon                                 S/F  
+Logon/Logoff:Logoff                                S/F  
+Logon/Logoff:Account Lockout                       S/F  
+Logon/Logoff:IPsec Main Mode                       S/F  
+Logon/Logoff:Special Logon                         S/F  
+Logon/Logoff:IPsec Quick Mode                      S/F  
+Logon/Logoff:IPsec Extended Mode                   S/F  
+Logon/Logoff:Other Logon/Logoff Events             S/F  
+Logon/Logoff:Network Policy Server                 S/F  
+Logon/Logoff:User/Device Claims                    S/F  
+Logon/Logoff:Group Membership                      S/F  
+Object Access:File System                          N    
+Object Access:Registry                             N    
+Object Access:Kernel Object                        N    
+Object Access:SAM                                  N    
+Object Access:Other Object Access Events           N    
+Object Access:Certification Services               N    
+Object Access:Application Generated                N    
+Object Access:Handle Manipulation                  N    
+Object Access:File Share                           N    
+Object Access:Filtering Platform Packet Drop       N    
+Object Access:Filtering Platform Connection        N    
+Object Access:Detailed File Share                  N    
+Object Access:Removable Storage                    N    
+Object Access:Central Policy Staging               N    
+Privilege Use:Sensitive Privilege Use              S/F  
+Privilege Use:Non Sensitive Privilege Use          S/F  
+Privilege Use:Other Privilege Use Events           S/F  
+Detailed Tracking:Process Creation                 N    
+Detailed Tracking:Process Termination              N    
+Detailed Tracking:DPAPI Activity                   N    
+Detailed Tracking:RPC Events                       N    
+Detailed Tracking:Plug and Play Events             N    
+Detailed Tracking:Token Right Adjusted Events      N    
+Policy Change:Audit Policy Change                  S/F  
+Policy Change:Authentication Policy Change         S/F  
+Policy Change:Authorization Policy Change          S/F  
+Policy Change:MPSSVC Rule-Level Policy Change      S/F  
+Policy Change:Filtering Platform Policy Change     S/F  
+Policy Change:Other Policy Change Events           S/F  
+Account Management:User Account Management         S/F  
+Account Management:Computer Account Management     S/F  
+Account Management:Security Group Management       S/F  
+Account Management:Distribution Group Management   S/F  
+Account Management:Application Group Management    S/F  
+Account Management:Other Account Management Events S/F  
+DS Access:Directory Service Access                 S/F  
+DS Access:Directory Service Changes                S/F  
+DS Access:Directory Service Replication            S/F  
+DS Access:Detailed Directory Service Replication   S/F  
+Account Logon:Credential Validation                S    
+Account Logon:Kerberos Service Ticket Operations   S    
+Account Logon:Other Account Logon Events                
+Account Logon:Kerberos Authentication Service      S    
+...........................................................................................................
+.
