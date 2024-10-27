@@ -2,7 +2,7 @@
 
 ![WAP](https://github.com/user-attachments/assets/c4428f83-a8d7-4acb-be72-522b3bd5b48e)
 
-The Windows Artifact Parser automates the process of parsing and analyzing Windows artifacts, saving time and effort for forensic investigators. The tool processes the input data, extracts relevant information, and generates comprehensive reports for each artifact type.
+The Windows Artifact Parser automates the process of parsing Windows artifacts, saving time and effort for forensic investigators. The tool processes the input data, extracts relevant information, and generates comprehensive reports for each artifact type.
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 
@@ -12,8 +12,6 @@ The Windows Artifact Parser automates the process of parsing and analyzing Windo
 - [Features](#-features)
 - [Prerequisites](#-prerequisites)
 - [Usage](#-usage)
-- [Limitations](#limitations)
-- [Future Updates](#-future-updates)
 - [Support](#coffee-support)
 
 ## 📚 Introduction
@@ -88,7 +86,13 @@ To execute the tool, follow the steps below:
 
 By following these steps, you can efficiently run the Windows Artifact Parser and obtain comprehensive reports on the parsed Windows artifacts.
 
+***Currently tested with following collections:***
+- [CyLR](https://github.com/orlikoski/CyLR)
+- [Magnet Response](https://www.magnetforensics.com/resources/magnet-response/)
+- [artifactcollector](https://github.com/forensicanalysis/artifactcollector)
+
 ## :coffee: Support
+
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.me/sanketbaraiya16)
 [![Google Pay](https://img.shields.io/badge/GooglePay-%233780F1.svg?style=for-the-badge&logo=Google-Pay&logoColor=white)](https://mega.nz/file/5AgGWYJY#OS2bS3sbPkUai0lE9wW6ymq_Ub1gLHn2XCZVanMWYts)
 [![Paytm](https://img.shields.io/badge/Paytm-1C2C94?style=for-the-badge&logo=paytm&logoColor=05BAF3)](https://mega.nz/file/kBwSxKpL#BMColiA74JWw1cXx7Z0LdpEjBRmkc6rp5oWmq23pXNY)

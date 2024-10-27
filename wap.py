@@ -1,7 +1,6 @@
 import subprocess
 import sys
 import time
-import msvcrt
 import os
 import ctypes
 import shutil
@@ -19,7 +18,7 @@ def print_wap_banner():
 | |/ |/ / / __ |  / ___/
 |__/|__/ /_/ |_| /_/
 
-Windows Artifact Parser
+Windows Artifact Parser v1.0
 ---------------------------------------"""
     print(banner)
 
