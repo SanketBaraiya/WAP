@@ -7,6 +7,7 @@ import ctypes
 import shutil
 import argparse
 from datetime import datetime
+import fnmatch
 
 def set_cmd_title(title):
     ctypes.windll.kernel32.SetConsoleTitleW(title)
@@ -32,13 +33,9 @@ def check_admin_rights():
         is_admin = True
 
     if not is_admin:
-        print("[ERROR] This tool requires administrative privileges to run.")
-        print("[INFO] Please run the tool as an administrator.")
-        print("Press any key to exit...")
-        msvcrt.getch()
-        sys.exit(1)
+        sys.exit("[ERROR] This tool requires administrative privileges to run.")
 
-def find_files(directory, filename):
+def find_files_path(directory, filename):
     file_paths = []
     for root, dirs, files in os.walk(directory):
         if filename in files:
@@ -46,75 +43,116 @@ def find_files(directory, filename):
 
     return file_paths
 
-def unzip_directory(zip_file_path, password=None):
-    if password:
-        cmd_command = ['lib\\7-Zip\\7z.exe', 'x', f'-p{password}', '-oWAP_Extraction\\', zip_file_path]
-    else:
-        cmd_command = ['lib\\7-Zip\\7z.exe', 'x', '-oWAP_Extraction\\', zip_file_path]
-
-    try:
-        process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        process.wait()
-        if process.returncode == 0:
-            return
-        else:
-            print("\r[ERROR] Error in extracting zip.")
-    except Exception as e:
-        print(f"\r[ERROR] Error in extracting zip: {e}")
-
-def amcache():
-    global no_error_amcache
-
-    base_directory = f"ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Amcache"
-    target_file = "Amcache.hve"
-    amcache_path = None
-
-    for root, dirs, files in os.walk(base_directory):
+def check_file_and_get_path(directory, target_file):
+    for root, dirs, files in os.walk(directory):
         if target_file in files:
-            amcache_path = os.path.join(root, target_file)
-            break
+            path = os.path.join(root, target_file)
+            return path
+    return None
 
-    cmd_command = ['lib\\AmcacheParser.exe', '-f', f'{amcache_path}', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Amcache\\']
-    amcache_anim_thread = threading.Thread(target=amcache_anim)
-    amcache_anim_thread.start()
+def check_file_extension(directory, extension):
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(extension):
+                return True
+    return False
 
+def test_zip(zip_file_path):
     try:
-        process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        process.wait()
-        if process.returncode == 0:
-            cmd_command = ['lib\\RegRipper\\rip.exe', '-r', f'{amcache_path}', '-a', '>', f'ESTK_Extraction_{collected_system_name}\\Results\\Amcache\\Amcache_RegRipper.txt']
-            try:
-                process = subprocess.run(cmd_command, shell=True)
-                if process.returncode == 0:
-                    amcache_anim_stop_event.set()
-                    amcache_anim_thread.join()
-                else:
-                    no_error_amcache = False
-                    amcache_anim_stop_event.set()
-                    amcache_anim_thread.join()
-            except Exception as e:
-                no_error_amcache = False
-                amcache_anim_stop_event.set()
-                amcache_anim_thread.join()
-        else:
-            no_error_amcache = False
-            amcache_anim_stop_event.set()
-            amcache_anim_thread.join()
-    except Exception as e:
-        no_error_amcache = False
-        amcache_anim_stop_event.set()
-        amcache_anim_thread.join()
+        cmd_command = ['lib\\7-Zip\\7z.exe', 't', '-p1234', zip_file_path, "-y"]
 
-def browser_data():
-    global no_error_browser_data
-    os.makedirs(f"ESTK_Extraction_{collected_system_name}\\Results\\Browser_Data")
-    browser_data_anim_thread = threading.Thread(target=browser_data_anim)
-    browser_data_anim_thread.start()
+        process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        stdout, stderr = process.communicate()
+
+        if process.returncode == 0:
+            print("[INFO] ZIP Verified Successfully")
+            return True
+        else:
+            return False
+
+    except Exception as e:
+        print(f"[ERROR] Exception occurred during extraction: {e}")
+        sys.exit(1)
+        return False
+
+def unzip_directory(zip_file_path, password=None):
+    try:
+        file_name = zip_file_path.split("\\")[-1]
+        cmd_command = ['lib\\7-Zip\\7z.exe', 'x', f'-oWAP_Extraction_{file_name}\\Extracted_Data', zip_file_path, "-y"]
+        if password:
+            cmd_command.insert(2, f'-p{password}')
+
+        print("[INFO] Started Unzipping Module")
+
+        process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        stdout, stderr = process.communicate()
+
+        if process.returncode == 0:
+            print("[INFO] Extraction successful\n")
+            return True
+        else:
+            print(f"[ERROR] Extraction failed. Error: {stderr.strip()}\n")
+            return False
+
+    except Exception as e:
+        print(f"[ERROR] Exception occurred during extraction: {e}\n")
+        return False
+
+def amcache(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    amcache_path = check_file_and_get_path(base_directory, "Amcache.hve")
+
+    if amcache_path:
+        print("[+] Amcache.hve found\n")
+        print("[INFO] Started Amcache Parser Module")
+
+        if zip:
+            cmd_command = ['lib\\AmcacheParser.exe', '-f', f'{amcache_path}', '--csv', f'WAP_Extraction_{file_name}\\Results\\Amcache\\']
+        else:
+            cmd_command = ['lib\\AmcacheParser.exe', '-f', f'{amcache_path}', '--csv', f'Results_{file_name}\\Amcache\\']
+
+        try:
+            process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            stdout, stderr = process.communicate()
+
+            if process.returncode == 0:
+                if zip:
+                    cmd_command = ['lib\\RegRipper\\rip.exe', '-r', f'{amcache_path}', '-a', '>', f'WAP_Extraction_{file_name}\\Results\\Amcache\\Amcache_RegRipper.txt']
+                else:
+                    cmd_command = ['lib\\RegRipper\\rip.exe', '-r', f'{amcache_path}', '-a', '>', f'Results_{file_name}\\Amcache\\Amcache_RegRipper.txt']
+                try:
+                    process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                    if process.returncode == 0:
+                        print("[INFO] Amcache Parsed Successfully\n")
+                    else:
+                        print(f"[ERROR] Amcache Parsing Failed. Error: {process.stderr.strip()}\n")
+                except Exception as e:
+                    print(f"[ERROR] Exception occurred during amcache parsing using RegRipper. Error: {e}\n")
+            else:
+                print(f"[ERROR] Amcache Parsing Failed. Error: {stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during amcache parsing using AmcacheParser. Error: {e}\n")
+    else:
+        print("[-] Amcache.hve not found\n")
+
+def browser_data(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
 
     chrome_paths = []
     edge_paths = []
     firefox_paths = []
-    results = find_files(f"ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Browser_History", "History")
+    results = find_files_path(base_directory, "History")
     if results != None:
         for path in results:
             if "Snapshots" not in path:
@@ -123,308 +161,460 @@ def browser_data():
                 if "Edge" in path:
                     edge_paths.append(path)
 
-    results = find_files(f"ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Browser_History", "places.sqlite")
+    print("[+] Chrome Data found" if chrome_paths else "[-] Chrome Data not found")
+    print("[+] Edge Data found" if edge_paths else "[-] Edge Data not found")
+
+    results = find_files_path(base_directory, "places.sqlite")
     if results != None:
         for path in results:
             firefox_paths.append(path)
-    try:
-        if chrome_paths != None:
-            for path in chrome_paths:
-                username = path.split("\\")[-8]
-                path.replace("\\","/")
-                cmd_command = ['lib\\sqlite\\sqlite3.exe', path, '.headers on', '.mode csv', f'.output ESTK_Extraction_{collected_system_name}/Results/Browser_Data/chrome_history_{username}.csv', 'SELECT * FROM URLS;' ]
-                process = subprocess.run(cmd_command, shell=True)
-                time.sleep(1)
-                if process.returncode == 0:
-                    cmd_command = ['lib\\sqlite\\sqlite3.exe', path, '.headers on', '.mode csv', f'.output ESTK_Extraction_{collected_system_name}/Results/Browser_Data/chrome_downloads_{username}.csv', 'SELECT ID,GUID,CURRENT_PATH,TARGET_PATH,START_TIME,RECEIVED_BYTES,TOTAL_BYTES,STATE,DANGER_TYPE,INTERRUPT_REASON,HASH,END_TIME,OPENED,LAST_ACCESS_TIME,TRANSIENT,REFERRER,SITE_URL,TAB_URL,TAB_REFERRER_URL,HTTP_METHOD,BY_EXT_ID,BY_EXT_NAME,BY_WEB_APP_ID,LAST_MODIFIED,MIME_TYPE,ORIGINAL_MIME_TYPE FROM DOWNLOADS;' ]
-                    process = subprocess.run(cmd_command, shell=True)
-                    time.sleep(1)
-                    if process.returncode == 0:
-                        pass
-                    else:
-                        no_error_browser_data = False
-                        browser_data_anim_stop_event.set()
-                        browser_data_anim_thread.join()
-                else:
-                    no_error_browser_data = False
-                    browser_data_anim_stop_event.set()
-                    browser_data_anim_thread.join()
 
-        if edge_paths != None and no_error_browser_data:
-            for path in edge_paths:
-                username = path.split("\\")[-8]
-                cmd_command = ['lib\\sqlite\\sqlite3.exe', path, '.headers on', '.mode csv', f'.output ESTK_Extraction_{collected_system_name}/Results/Browser_Data/edge_history_{username}.csv', 'SELECT * FROM URLS;' ]
-                process = subprocess.run(cmd_command, shell=True)
-                time.sleep(1)
-                if process.returncode == 0:
-                    cmd_command = ['lib\\sqlite\\sqlite3.exe', path, '.headers on', '.mode csv', f'.output ESTK_Extraction_{collected_system_name}/Results/Browser_Data/edge_downloads_{username}.csv', 'SELECT ID,GUID,CURRENT_PATH,TARGET_PATH,START_TIME,RECEIVED_BYTES,TOTAL_BYTES,STATE,DANGER_TYPE,INTERRUPT_REASON,HASH,END_TIME,OPENED,LAST_ACCESS_TIME,TRANSIENT,REFERRER,SITE_URL,TAB_URL,TAB_REFERRER_URL,HTTP_METHOD,BY_EXT_ID,BY_EXT_NAME,LAST_MODIFIED,MIME_TYPE,ORIGINAL_MIME_TYPE FROM DOWNLOADS;' ]
-                    process = subprocess.run(cmd_command, shell=True)
-                    time.sleep(1)
-                    if process.returncode == 0:
-                        pass
-                    else:
-                        no_error_browser_data = False
-                        browser_data_anim_stop_event.set()
-                        browser_data_anim_thread.join()
-                else:
-                    no_error_browser_data = False
-                    browser_data_anim_stop_event.set()
-                    browser_data_anim_thread.join()
+    print("[+] Firefox Data found" if firefox_paths else "[-] Firefox Data not found")
 
-        if firefox_paths != None and no_error_browser_data:
-            for path in firefox_paths:
-                username = path.split("\\")[-8]
-                cmd_command = ['lib\\sqlite\\sqlite3.exe', path, '.headers on', '.mode csv', f'.output ESTK_Extraction_{collected_system_name}/Results/Browser_Data/firefox_history_{username}.csv', 'SELECT * FROM MOZ_PLACES;' ]
-                process = subprocess.run(cmd_command, shell=True)
-                time.sleep(1)
-                if process.returncode == 0:
-                    pass
-                else:
-                    no_error_browser_data = False
-                    browser_data_anim_stop_event.set()
-                    browser_data_anim_thread.join()
-
-        browser_data_anim_stop_event.set()
-        browser_data_anim_thread.join()
-
-    except Exception as e:
-        no_error_browser_data = False
-        browser_data_anim_stop_event.set()
-        browser_data_anim_thread.join()
-
-def jumplist():
-    global no_error_jumplist
-    cmd_command = ['lib\\JLECmd.exe', '-q', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Jumplists-CustomDestinations', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Jumplist', '>', 'NUL']
-    jumplist_anim_thread = threading.Thread(target=jumplist_anim)
-    jumplist_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            cmd_command = ['lib\\JLECmd.exe', '-q', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Jumplists-AutomaticDestinations', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Jumplist', '>', 'NUL']
-            try:
-                process = subprocess.run(cmd_command, shell=True)
-                if process.returncode == 0:
-                    jumplist_anim_stop_event.set()
-                    jumplist_anim_thread.join()
-                else:
-                    no_error_jumplist = False
-                    jumplist_anim_stop_event.set()
-                    jumplist_anim_thread.join()
-            except Exception as e:
-                no_error_jumplist = False
-                jumplist_anim_stop_event.set()
-                jumplist_anim_thread.join()
+    if chrome_paths or edge_paths or firefox_paths:
+        if zip:
+            os.mkdir(f"WAP_Extraction_{file_name}\\Results\\Browser_Data")
         else:
-            no_error_jumplist = False
-            jumplist_anim_stop_event.set()
-            jumplist_anim_thread.join()
-    except Exception as e:
-        no_error_jumplist = False
-        jumplist_anim_stop_event.set()
-        jumplist_anim_thread.join()
+            os.mkdir(f"Results_{file_name}\\Browser_Data")
 
-def mft():
-    global no_error_mft
-    cmd_command = ['lib\\MFTECmd.exe', '-f', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\MFT\\C\\$MFT', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\MFT']
-    mft_anim_thread = threading.Thread(target=mft_anim)
-    mft_anim_thread.start()
-
-    try:
-        process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        process.wait()
-        if process.returncode == 0:
-            mft_anim_stop_event.set()
-            mft_anim_thread.join()
-        else:
-            no_error_mft = False
-            mft_anim_stop_event.set()
-            mft_anim_thread.join()
-    except Exception as e:
-        no_error_mft = False
-        mft_anim_stop_event.set()
-        mft_anim_thread.join()
-
-def usnlog():
-    global no_error_usnlog
-    os.mkdir(f"ESTK_Extraction_{collected_system_name}\\Results\\UsnJournalandLogFile")
-    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\MISC\\C\\$LogFile', '-u', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\MISC\\C\\$Extend\\$J', '-m', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\MFT\\C\\$MFT', '-o', f'ESTK_Extraction_{collected_system_name}\\Results\\UsnJournalandLogFile', '-c', '>', 'NUL']
-    usnlog_anim_thread = threading.Thread(target=usnlog_anim)
-    usnlog_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            usnlog_anim_stop_event.set()
-            usnlog_anim_thread.join()
-        else:
-            no_error_usnlog = False
-            usnlog_anim_stop_event.set()
-            usnlog_anim_thread.join()
-    except Exception as e:
-        no_error_usnlog = False
-        usnlog_anim_stop_event.set()
-        usnlog_anim_thread.join()
-
-def prefetch():
-    global no_error_prefetch
-    cmd_command = ['lib\\PECmd.exe', '-q', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Prefetch_Files', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Prefetch_Files', '>', 'NUL']
-    prefetch_anim_thread = threading.Thread(target=prefetch_anim)
-    prefetch_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            prefetch_anim_stop_event.set()
-            prefetch_anim_thread.join()
-        else:
-            no_error_prefetch = False
-            prefetch_anim_stop_event.set()
-            prefetch_anim_thread.join()
-    except Exception as e:
-        no_error_prefetch = False
-        prefetch_anim_stop_event.set()
-        prefetch_anim_thread.join()
-
-def recent_files():
-    global no_error_recent_files
-    cmd_command = ['lib\\LECmd.exe', '-q', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Recent_Files', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Recent_Files', '>', 'NUL']
-    recent_files_anim_thread = threading.Thread(target=recent_files_anim)
-    recent_files_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            recent_files_anim_stop_event.set()
-            recent_files_anim_thread.join()
-        else:
-            no_error_recent_files = False
-            recent_files_anim_stop_event.set()
-            recent_files_anim_thread.join()
-    except Exception as e:
-        no_error_recent_files = False
-        recent_files_anim_stop_event.set()
-        recent_files_anim_thread.join()
-
-def recycle_bin():
-    global no_error_recycle_bin
-    cmd_command = ['lib\\RBCmd.exe', '-q', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Recycle_Bin', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Recycle_Bin', '>', 'NUL']
-    recycle_bin_anim_thread = threading.Thread(target=recycle_bin_anim)
-    recycle_bin_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            recycle_bin_anim_stop_event.set()
-            recycle_bin_anim_thread.join()
-        else:
-            no_error_recent_files = False
-            recycle_bin_anim_stop_event.set()
-            recycle_bin_anim_thread.join()
-    except Exception as e:
-        no_error_recent_files = False
-        recycle_bin_anim_stop_event.set()
-        recycle_bin_anim_thread.join()
-
-def shellbags():
-    global no_error_shellbags
-    cmd_command = ['lib\\SBECmd.exe', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Shellbags', '>', 'NUL']
-    shellbags_anim_thread = threading.Thread(target=shellbags_anim)
-    shellbags_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            shellbags_anim_stop_event.set()
-            shellbags_anim_thread.join()
-        else:
-            no_error_shellbags = False
-            shellbags_anim_stop_event.set()
-            shellbags_anim_thread.join()
-    except Exception as e:
-        no_error_shellbags = False
-        shellbags_anim_stop_event.set()
-        shellbags_anim_thread.join()
-
-def registry():
-    global no_error_registry
-    os.mkdir(f'ESTK_Extraction_{collected_system_name}\\Results\\Registry_Hives')
-    cmd_command = ['python', '-W', 'ignore', 'lib\\RegRipper\\autoripy.py', 'lib\\Regripper\\', '-s', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Registry_Hives\\C\\Windows\\system32\\config', '-a', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Amcache\\C\\Windows\\AppCompat\\Programs\\', '-n', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\NTUSER.DAT\\', '-u', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\UsrClass.dat\\', '-r', f'ESTK_Extraction_{collected_system_name}\\Results\\Registry_Hives', '>', 'NUL']
-    registry_anim_thread = threading.Thread(target=registry_anim)
-    registry_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        cmd_commands = [['lib\\RegRipper\\rip.exe', '-r', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Registry_Hives\\C\\Windows\\system32\\config\\SOFTWARE', '-a', '>', f'ESTK_Extraction_{collected_system_name}\\Results\\Registry_Hives\\SOFTWARE.txt'], ['lib\\RegRipper\\rip.exe', '-r', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Registry_Hives\\C\\Windows\\system32\\config\\SAM', '-a', '>', f'ESTK_Extraction_{collected_system_name}\\Results\\Registry_Hives\\SAM.txt'], ['lib\\RegRipper\\rip.exe', '-r', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Registry_Hives\\C\\Windows\\system32\\config\\SYSTEM', '-a', '>', f'ESTK_Extraction_{collected_system_name}\\Results\\Registry_Hives\\SYSTEM.txt']]
-        for cmd_command in cmd_commands:
-            process = subprocess.run(cmd_command, shell=True)
-        result = find_files(f"ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\NTUSER.DAT\\C\\Users", "NTUSER.DAT")
-        for path in result:
-            user = path.split("\\")[-2]
-            cmd_command = ['lib\\RegRipper\\rip.exe', '-r', path, '-a', '>', f'ESTK_Extraction_{collected_system_name}\\Results\\Registry_Hives\\NTUSER_{user}.txt']
-            process = subprocess.run(cmd_command, shell=True)
-        registry_anim_stop_event.set()
-        registry_anim_thread.join()
-    except Exception as e:
-        no_error_registry = False
-        registry_anim_stop_event.set()
-        registry_anim_thread.join()
-
-def event_logs():
-    global no_error_event_logs
-    os.mkdir(f"ESTK_Extraction_{collected_system_name}\\Results\\Windows_Event_Logs")
-    cmd_command = ['python', '-W', 'ignore', 'lib\\APT-Hunter\\APT-Hunter.py', '-p', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Windows_Event_Logs', '-o', 'APT-Hunter', '-allreport', '>', 'NUL']
-    event_logs_anim_thread = threading.Thread(target=event_logs_anim)
-    event_logs_anim_thread.start()
-
-    try:
-        process = subprocess.run(cmd_command, shell=True)
-        if process.returncode == 0:
-            shutil.move('APT-Hunter', f'ESTK_Extraction_{collected_system_name}\\Results\\Windows_Event_Logs')
-            cmd_command = ['lib\\EvtxeCmd\\EvtxECmd.exe', '-d', f'ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Windows_Event_Logs', '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\Windows_Event_Logs', '>', 'NUL']
-            process = subprocess.run(cmd_command, shell=True)
-            if process.returncode == 0:
-                event_logs_anim_stop_event.set()
-                event_logs_anim_thread.join()
-            else:
-                no_error_event_logs = False
-                event_logs_anim_stop_event.set()
-                event_logs_anim_thread.join()
-        else:
-            no_error_event_logs = False
-            event_logs_anim_stop_event.set()
-            event_logs_anim_thread.join()
-    except Exception as e:
-        no_error_event_logs = False
-        event_logs_anim_stop_event.set()
-        event_logs_anim_thread.join()
-
-def windows_timeline():
-    global no_error_windows_timeline
-    result = find_files(f"ESTK_Extraction_{collected_system_name}\\ESLCK_Collection\\Collection\\Artifacts\\Saved_Files\\Windows_Timeline", "ActivitiesCache.db")
-    windows_timeline_anim_thread = threading.Thread(target=windows_timeline_anim)
-    windows_timeline_anim_thread.start()
-    for path in result:
-        cmd_command = ['lib\\WxTCmd.exe', '-f', path, '--csv', f'ESTK_Extraction_{collected_system_name}\\Results\\WindowsTimeline', '>', 'NUL']
         try:
-            process = subprocess.run(cmd_command, shell=True)
-            if process.returncode == 0:
-                windows_timeline_anim_stop_event.set()
-                windows_timeline_anim_thread.join()
-            else:
-                no_error_windows_timeline = False
-                windows_timeline_anim_stop_event.set()
-                windows_timeline_anim_thread.join()
+            if chrome_paths:
+                print("\n[INFO] Started Chrome Data Parser Module")
+                for final_path in chrome_paths:
+                    username = final_path.split("\\")[-8]
+                    final_path.replace("\\","/")
+
+                    if zip:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output WAP_Extraction_{file_name}/Results/Browser_Data/chrome_history_{username}.csv', 'SELECT * FROM URLS;' ]
+                    else:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output Results_{file_name}/Browser_Data/chrome_history_{username}.csv', 'SELECT * FROM URLS;' ]
+
+                    process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                    time.sleep(1)
+
+                    if zip:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output WAP_Extraction_{file_name}/Results/Browser_Data/chrome_downloads_{username}.csv', 'SELECT ID,GUID,CURRENT_PATH,TARGET_PATH,START_TIME,RECEIVED_BYTES,TOTAL_BYTES,STATE,DANGER_TYPE,INTERRUPT_REASON,HASH,END_TIME,OPENED,LAST_ACCESS_TIME,TRANSIENT,REFERRER,SITE_URL,TAB_URL,TAB_REFERRER_URL,HTTP_METHOD,BY_EXT_ID,BY_EXT_NAME,BY_WEB_APP_ID,LAST_MODIFIED,MIME_TYPE,ORIGINAL_MIME_TYPE FROM DOWNLOADS;']
+                    else:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output Results_{file_name}/Browser_Data/chrome_downloads_{username}.csv', 'SELECT ID,GUID,CURRENT_PATH,TARGET_PATH,START_TIME,RECEIVED_BYTES,TOTAL_BYTES,STATE,DANGER_TYPE,INTERRUPT_REASON,HASH,END_TIME,OPENED,LAST_ACCESS_TIME,TRANSIENT,REFERRER,SITE_URL,TAB_URL,TAB_REFERRER_URL,HTTP_METHOD,BY_EXT_ID,BY_EXT_NAME,BY_WEB_APP_ID,LAST_MODIFIED,MIME_TYPE,ORIGINAL_MIME_TYPE FROM DOWNLOADS;']
+
+                    process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                    time.sleep(1)
+
+                print("[INFO] Chrome Data Parsed Successfully")
+
+            if edge_paths:
+                print("\n[INFO] Started Edge Data Parser Module")
+                for final_path in edge_paths:
+                    username = final_path.split("\\")[-8]
+
+                    if zip:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output WAP_Extraction_{file_name}/Results/Browser_Data/edge_history_{username}.csv', 'SELECT * FROM URLS;' ]
+                    else:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output Results_{file_name}/Browser_Data/edge_history_{username}.csv', 'SELECT * FROM URLS;' ]
+
+                    process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                    time.sleep(1)
+
+                    if zip:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output WAP_Extraction_{file_name}/Results/Browser_Data/edge_downloads_{username}.csv', 'SELECT ID,GUID,CURRENT_PATH,TARGET_PATH,START_TIME,RECEIVED_BYTES,TOTAL_BYTES,STATE,DANGER_TYPE,INTERRUPT_REASON,HASH,END_TIME,OPENED,LAST_ACCESS_TIME,TRANSIENT,REFERRER,SITE_URL,TAB_URL,TAB_REFERRER_URL,HTTP_METHOD,BY_EXT_ID,BY_EXT_NAME,LAST_MODIFIED,MIME_TYPE,ORIGINAL_MIME_TYPE FROM DOWNLOADS;' ]
+                    else:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output Results_{file_name}/Browser_Data/edge_downloads_{username}.csv', 'SELECT ID,GUID,CURRENT_PATH,TARGET_PATH,START_TIME,RECEIVED_BYTES,TOTAL_BYTES,STATE,DANGER_TYPE,INTERRUPT_REASON,HASH,END_TIME,OPENED,LAST_ACCESS_TIME,TRANSIENT,REFERRER,SITE_URL,TAB_URL,TAB_REFERRER_URL,HTTP_METHOD,BY_EXT_ID,BY_EXT_NAME,LAST_MODIFIED,MIME_TYPE,ORIGINAL_MIME_TYPE FROM DOWNLOADS;' ]
+
+                    process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                    time.sleep(1)
+
+                print("[INFO] Edge Data Parsed Successfully")
+
+            if firefox_paths:
+                print("\n[INFO] Started Firefox Data Parser Module")
+                for final_path in firefox_paths:
+                    username = final_path.split("\\")[-8]
+
+                    if zip:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output WAP_Extraction_{file_name}/Results/Browser_Data/firefox_history_{username}.csv', 'SELECT * FROM MOZ_PLACES;' ]
+                    else:
+                        cmd_command = ['lib\\sqlite\\sqlite3.exe', final_path, '.headers on', '.mode csv', f'.output Results_{file_name}/Browser_Data/firefox_history_{username}.csv', 'SELECT * FROM MOZ_PLACES;' ]
+
+                    process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                    time.sleep(1)
+
+                print("[INFO] Firefox Data Parsed Successfully")
+            print("")
         except Exception as e:
-            no_error_windows_timeline = False
-            windows_timeline_anim_stop_event.set()
-            windows_timeline_anim_thread.join()
+            print(f"[ERROR] Browser Data Parsing Failed. Error: {e}\n")
+    else:
+        print("")
+
+def jumplist(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    jumplist_custom = check_file_extension(base_directory, ".customDestinations-ms")
+    jumplist_automatic = check_file_extension(base_directory, ".automaticDestinations-ms")
+
+    if jumplist_custom or jumplist_automatic:
+        print("[+] Jumplist found\n")
+        print("[INFO] Started Jumplist Parser Module")
+
+        if zip:
+            cmd_command = ['lib\\JLECmd.exe', '-q', '-d', base_directory, '--csv', f'WAP_Extraction_{file_name}\\Results\\Jumplist', '>', 'NUL']
+        else:
+            cmd_command = ['lib\\JLECmd.exe', '-q', '-d', base_directory, '--csv', f'Results_{file_name}\\Jumplist', '>', 'NUL']
+
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                print("[INFO] Jumplist Parsed Successfully\n")
+            else:
+                print(f"[ERROR] Jumplist Parsing Failed. Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during jumplist parsing. Error: {e}\n")
+    else:
+        print("[-] Jumplist not found\n")
+
+def mft(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    mft_path = check_file_and_get_path(base_directory, "$MFT")
+
+    if mft_path:
+        print("[+] $MFT found\n")
+        print("[INFO] Started $MFT Parser Module")
+
+        if zip:
+            cmd_command = ['lib\\MFTECmd.exe', '-f', mft_path, '--csv', f'WAP_Extraction_{file_name}\\Results\\MFT']
+        else:
+            cmd_command = ['lib\\MFTECmd.exe', '-f', mft_path, '--csv', f'Results_{file_name}\\MFT']
+        try:
+            process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            stdout, stderr = process.communicate()
+            if process.returncode == 0:
+                print("[INFO] $MFT Parsed Successfully\n")
+            else:
+                print(f"[ERROR] $MFT Parsing Failed. Error: {stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during $MFT parsing. Error: {e}\n")
+    else:
+        print("[-] $MFT not found\n")
+
+def usnlog(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    usn_path = check_file_and_get_path(base_directory, "$J")
+    log_path = check_file_and_get_path(base_directory, "$LogFile")
+
+    print("[+] $J (UsnJournal) found" if usn_path else "[-] $J (UsnJournal) not found")
+    print("[+] $LogFile found" if log_path else "[-] $LogFile not found")
+
+    if usn_path or log_path:
+        if usn_path and log_path:
+            print("\n[INFO] Started UsnJournal and $LogFile Parser Module")
+            final_msg = "[INFO] UsnJournal and $LogFile Parsed Successfully\n"
+            error_msg = "[ERROR] UsnJournal and $LogFile Parsing Failed."
+            exception_msg = "[ERROR] Exception occurred during UsnJournal and $LogFile parsing."
+            if zip:
+                os.mkdir(f"WAP_Extraction_{file_name}\\Results\\UsnJournalandLogFile")
+                mft_path = check_file_and_get_path(base_directory, "$MFT")
+                if mft_path:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-u', usn_path, '-m', mft_path, '-o', f'WAP_Extraction_{file_name}\\Results\\UsnJournalandLogFile', '-b', '-c', '>', 'NUL']
+                else:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-u', usn_path, '-o', f'WAP_Extraction_{file_name}\\Results\\UsnJournalandLogFile', '-b', '-c', '>', 'NUL']
+            else:
+                os.mkdir(f"Results_{file_name}\\UsnJournalandLogFile")
+                mft_path = check_file_and_get_path(base_directory, "$MFT")
+                if mft_path:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-u', usn_path, '-m', mft_path, '-o', f'Results_{file_name}\\UsnJournalandLogFile', '-b', '-c', '>', 'NUL']
+                else:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-u', usn_path, '-o', f'Results_{file_name}\\UsnJournalandLogFile', '-b', '-c', '>', 'NUL']
+        if usn_path and not log_path:
+            print("\n[INFO] Started UsnJournal Parser Module")
+            final_msg = "[INFO] UsnJournal Parsed Successfully\n"
+            error_msg = "[ERROR] UsnJournal Parsing Failed."
+            exception_msg = "[ERROR] Exception occurred during UsnJournal parsing."
+            if zip:
+                os.mkdir(f"WAP_Extraction_{file_name}\\Results\\UsnJournal")
+                mft_path = check_file_and_get_path(base_directory, "$MFT")
+                if mft_path:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-u', usn_path, '-m', mft_path, '-o', f'WAP_Extraction_{file_name}\\Results\\UsnJournal', '-b', '-c', '>', 'NUL']
+                else:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-u', usn_path, '-o', f'WAP_Extraction_{file_name}\\Results\\UsnJournal', '-b', '-c', '>', 'NUL']
+            else:
+                os.mkdir(f"Results_{file_name}\\UsnJournal")
+                mft_path = check_file_and_get_path(base_directory, "$MFT")
+                if mft_path:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-u', usn_path, '-m', mft_path, '-o', f'Results_{file_name}\\UsnJournal', '-b', '-c', '>', 'NUL']
+                else:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-u', usn_path, '-o', f'Results_{file_name}\\UsnJournal', '-b', '-c', '>', 'NUL']
+        if not usn_path and log_path:
+            print("\n[INFO] Started $LogFile Parser Module")
+            final_msg = "[INFO] $LogFile Parsed Successfully\n"
+            error_msg = "[ERROR] $LogFile Parsing Failed."
+            exception_msg = "[ERROR] Exception occurred during $LogFile parsing."
+            if zip:
+                os.mkdir(f"WAP_Extraction_{file_name}\\Results\\LogFile")
+                mft_path = check_file_and_get_path(base_directory, "$MFT")
+                if mft_path:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-m', mft_path, '-o', f'WAP_Extraction_{file_name}\\Results\\LogFile', '-b', '-c', '>', 'NUL']
+                else:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-o', f'WAP_Extraction_{file_name}\\Results\\LogFile', '-b', '-c', '>', 'NUL']
+            else:
+                os.mkdir(f"Results_{file_name}\\LogFile")
+                mft_path = check_file_and_get_path(base_directory, "$MFT")
+                if mft_path:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-m', mft_path, '-o', f'Results_{file_name}\\LogFile', '-b', '-c', '>', 'NUL']
+                else:
+                    cmd_command = ['lib\\NTFSLogTracker\\NTFS_Log_Tracker.exe', '-l', log_path, '-o', f'Results_{file_name}\\LogFile', '-b', '-c', '>', 'NUL']
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                print(final_msg)
+            else:
+                print(f"{error_msg} Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"{exception_msg} Error: {e}\n")
+    else:
+        print("")
+
+def prefetch(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    prefetch_present = check_file_extension(base_directory, ".pf")
+
+    if prefetch_present:
+        print("[+] Prefetch found\n")
+        print("[INFO] Started Prefetch Parser Module")
+
+        if zip:
+            cmd_command = ['lib\\PECmd.exe', '-q', '-d', base_directory, '--csv', f'WAP_Extraction_{file_name}\\Results\\Prefetch_Files', '>', 'NUL']
+        else:
+            cmd_command = ['lib\\PECmd.exe', '-q', '-d', base_directory, '--csv', f'Results_{file_name}\\Prefetch_Files', '>', 'NUL']
+
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                print("[INFO] Prefetch Parsed Successfully\n")
+            else:
+                print(f"[ERROR] Prefetch Parsing Failed. Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during prefetch parsing. Error: {e}\n")
+    else:
+        print("[-] Prefetch not found\n")
+
+def recent_files(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    recent_files_present = check_file_extension(base_directory, ".lnk")
+
+    if recent_files_present:
+        print("[+] Recent Files found\n")
+        print("[INFO] Started Recent Files Parser Module")
+
+        if zip:
+            cmd_command = ['lib\\LECmd.exe', '-q', '-d', base_directory, '--csv', f'WAP_Extraction_{file_name}\\Results\\Recent_Files', '>', 'NUL']
+        else:
+            cmd_command = ['lib\\LECmd.exe', '-q', '-d', base_directory, '--csv', f'Results_{file_name}\\Recent_Files', '>', 'NUL']
+
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                print("[INFO] Recent Files Parsed Successfully\n")
+            else:
+                print(f"[ERROR] Recent Files Parsing Failed. Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during recent files parsing. Error: {e}\n")
+    else:
+        print("[-] Recent Files not found\n")
+
+def recycle_bin(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    recycle_bin_present = False
+
+    for dirpath, _, filenames in os.walk(base_directory):
+        for filename in filenames:
+            if fnmatch.fnmatch(filename, '$I*'):
+                recycle_bin_present = True
+                break
+
+    if recycle_bin_present:
+        print("[+] Recycle Bin Files found\n")
+        print("[INFO] Started Recycle Bin Parser Module")
+
+        if zip:
+            cmd_command = ['lib\\RBCmd.exe', '-q', '-d', base_directory, '--csv', f'WAP_Extraction_{file_name}\\Results\\Recycle_Bin', '>', 'NUL']
+        else:
+            cmd_command = ['lib\\RBCmd.exe', '-q', '-d', base_directory, '--csv', f'Results_{file_name}\\Recycle_Bin', '>', 'NUL']
+
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                print("[INFO] Recycle Bin Parsed Successfully\n")
+            else:
+                print(f"[ERROR] Recycle Bin Parsing Failed. Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during recycle bin parsing. Error: {e}\n")
+    else:
+        print("[-] Recycle Bin Files not found\n")
+
+def shellbags(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    ntuser_present = check_file_and_get_path(base_directory, "NTUSER.DAT")
+    usrdat_present = check_file_and_get_path(base_directory, "UsrClass.dat")
+
+    print("[+] NTUSER.DAT found" if ntuser_present else "[-] NTUSER.DAT not found")
+    print("[+] UsrClass.dat found" if usrdat_present else "[-] UsrClass.dat not found")
+
+    if ntuser_present or usrdat_present:
+        print("\n[INFO] Started Shellbags Parser Module")
+        if zip:
+            cmd_command = ['lib\\SBECmd.exe', '-d', base_directory, '--csv', f'WAP_Extraction_{file_name}\\Results\\Shellbags', '>', 'NUL']
+        else:
+            cmd_command = ['lib\\SBECmd.exe', '-d', base_directory, '--csv', f'Results_{file_name}\\Shellbags', '>', 'NUL']
+
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                print("[INFO] Shellbags Parsed Successfully\n")
+            else:
+                print(f"[ERROR] Shellbags Parsing Failed. Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during shellbags parsing. Error: {e}\n")
+    else:
+        print("")
+
+def registry(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    software_hive_present = check_file_and_get_path(base_directory, "SOFTWARE")
+    system_hive_present = check_file_and_get_path(base_directory, "SYSTEM")
+    sam_hive_present = check_file_and_get_path(base_directory, "SAM")
+    security_hive_present = check_file_and_get_path(base_directory, "SECURITY")
+
+    print("[+] SOFTWARE Hive found" if software_hive_present else "[-] SOFTWARE Hive not found")
+    print("[+] SYSTEM Hive found" if system_hive_present else "[-] SYSTEM Hive not found")
+    print("[+] SAM Hive found" if sam_hive_present else "[-] SAM Hive not found")
+    print("[+] SECURITY Hive found" if security_hive_present else "[-] SECURITY Hive not found")
+
+    if software_hive_present or system_hive_present or sam_hive_present or security_hive_present:
+        print("\n[INFO] Started Registry Hives Parser Module")
+
+        if zip:
+            output_path = f"WAP_Extraction_{file_name}\\Results\\Registry_Hives"
+            os.mkdir(output_path)
+        else:
+            output_path = f"Results_{file_name}\\Registry_Hives"
+            os.mkdir(output_path)
+
+        cmd_commands = []
+
+        if software_hive_present:
+            cmd_commands.append(['lib\\RegRipper\\rip.exe', '-r', software_hive_present, '-a', '>', f'{output_path}\\SOFTWARE.txt'])
+        if sam_hive_present:
+            cmd_commands.append(['lib\\RegRipper\\rip.exe', '-r', sam_hive_present, '-a', '>', f'{output_path}\\SAM.txt'])
+        if system_hive_present:
+            cmd_commands.append(['lib\\RegRipper\\rip.exe', '-r', system_hive_present, '-a', '>', f'{output_path}\\SYSTEM.txt'])
+        if security_hive_present:
+            cmd_commands.append(['lib\\RegRipper\\rip.exe', '-r', security_hive_present, '-a', '>', f'{output_path}\\SECURITY.txt'])
+
+        try:
+            for cmd_command in cmd_commands:
+                process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            print("[INFO] Registry Hives Parsed Successfully\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during registry hives parsing. Error: {e}\n")
+    else:
+        print("")
+
+def event_logs(path, zip=False):
+    if zip:
+        file_name = path.split("\\")[-1]
+        base_directory = f"WAP_Extraction_{file_name}\\Extracted_Data"
+    else:
+        file_name = path.split("\\")[-1]
+        base_directory = path
+
+    event_logs_present = check_file_extension(base_directory, ".evtx")
+
+    if event_logs_present:
+        print("[+] Windows Event Logs found\n")
+        print("[INFO] Started Windows Event Logs Parser Module")
+
+        if zip:
+            os.mkdir(f"WAP_Extraction_{file_name}\\Results\\Windows_Event_Logs")
+        else:
+            os.mkdir(f"Results_{file_name}\\Windows_Event_Logs")
+
+        cmd_command = ['lib\\APT-Hunter\\APT-Hunter.exe', '-p', base_directory, '-o', 'APT-Hunter', '-allreport', '>', 'NUL']
+
+        try:
+            process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+            if process.returncode == 0:
+                if zip:
+                    shutil.move('APT-Hunter', f'WAP_Extraction_{file_name}\\Results\\Windows_Event_Logs')
+                    cmd_command = ['lib\\EvtxeCmd\\EvtxECmd.exe', '-d', base_directory, '--csv', f'WAP_Extraction_{file_name}\\Results\\Windows_Event_Logs', '>', 'NUL']
+                else:
+                    shutil.move('APT-Hunter', f'Results_{file_name}\\Windows_Event_Logs')
+                    cmd_command = ['lib\\EvtxeCmd\\EvtxECmd.exe', '-d', base_directory, '--csv', f'Results_{file_name}\\Windows_Event_Logs', '>', 'NUL']
+
+                process = subprocess.run(cmd_command, shell=True, capture_output=True, text=True)
+                if process.returncode == 0:
+                    print("[INFO] Windows Event Logs Parsed Successfully\n")
+                else:
+                    print(f"[ERROR] Windows Event Logs Parsing Failed Using EvtxeCmd. Error: {process.stderr.strip()}\n")
+            else:
+                print(f"[ERROR] Windows Event Logs Parsing Failed Using APT-Hunter. Error: {process.stderr.strip()}\n")
+        except Exception as e:
+            print(f"[ERROR] Exception occurred during windows event logs parsing. Error: {e}\n")
+    else:
+        print("[-] Windows Event Logs not found\n")
 
 if __name__ == "__main__":
     set_cmd_title("WAP - Windows Artifact Parser")
     check_admin_rights()
+    print_wap_banner()
+    start_time = time.time()
 
-    zip_file_path, directory, password = None, None, None
+    zip_file_path, directory, zip_password = None, None, None
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--zip', help="Path to the artifact zip")
@@ -434,106 +624,115 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.directory and args.zip:
-        print("[ERROR] Either --zip or --directory must be provided not both.")
-        print("Press any key to exit...")
-        msvcrt.getch()
-        sys.exit(1)
+        sys.exit("[ERROR] Either --zip or --directory must be provided not both.")
     if args.directory or args.zip:
         if args.zip and not args.password:
-            y_n = input("Is the zip password protected? [y/N] :: ")
-            if y_n in ["y", "Y"]:
-                print("[INFO] Run the script with --password [PASSWORD] along with --zip.")
-                print("Press any key to exit...")
-                msvcrt.getch()
-                sys.exit(1)
-            if y_n in ["n", "", "N"]:
-                zip_file_path = args.zip
-            else:
-                print("[ERROR] Please select Y or N")
-                print("Press any key to exit...")
-                msvcrt.getch()
-                sys.exit(1)
+            zip_file_path = args.zip
+            print("[INFO] Verifying ZIP")
+            no_pass_protected = test_zip(zip_file_path)
+            if not no_pass_protected:
+                sys.exit("[INFO] ZIP is password protected. Run the script with --password [PASSWORD] along with --zip.")
+            print("---------------------------------------")
         if args.zip and args.password:
             zip_file_path = args.zip
             zip_password = args.password
         if args.directory:
             directory = args.directory
     else:
-        print("[ERROR] Either --zip or --directory must be provided.")
-        print("Press any key to exit...")
-        msvcrt.getch()
-        sys.exit(1)
+        sys.exit("[ERROR] Either --zip or --directory must be provided.")
 
-    print_wap_banner()
-    start_time = time.time()
 
     if zip_file_path:
         print("Processing:", zip_file_path)
         print("Started at:", datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
         print("---------------------------------------")
-        print("[INFO] Started Unzipping Module")
-        unzip_directory(zip_file_path, password)
+
+        unzip_successful = unzip_directory(zip_file_path, zip_password)
         time.sleep(1)
-        os.mkdir("WAP_Extraction\\Results")
+
+        if unzip_successful:
+            zip_file_name = zip_file_path.split("\\")[-1]
+            os.mkdir(f"WAP_Extraction_{zip_file_name}\\Results")
+
+            amcache(zip_file_path, True)
+            time.sleep(1)
+
+            browser_data(zip_file_path, True)
+            time.sleep(1)
+
+            jumplist(zip_file_path, True)
+            time.sleep(1)
+
+            mft(zip_file_path, True)
+            time.sleep(1)
+
+            usnlog(zip_file_path, True)
+            time.sleep(1)
+
+            prefetch(zip_file_path, True)
+            time.sleep(1)
+
+            recent_files(zip_file_path, True)
+            time.sleep(1)
+
+            recycle_bin(zip_file_path, True)
+            time.sleep(1)
+
+            shellbags(zip_file_path, True)
+            time.sleep(1)
+
+            registry(zip_file_path, True)
+            time.sleep(1)
+
+            event_logs(zip_file_path, True)
+            time.sleep(1)
     else:
         print("Processing:", directory)
         print("Started at:", datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
         print("---------------------------------------")
-        os.mkdir("Results")
-    #############################################################################
-    # print("[INFO] Started Amcache Parser Module")
-    # amcache()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Browser History Parser Module")
-    # browser_data()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Jumplist Parser Module")
-    # jumplist()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started $MFT Parser Module")
-    # mft()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started UsnJournal & $LogFile Parser Module")
-    # usnlog()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Prefetch Files Parser Module")
-    # prefetch()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Recent Files Parser Module")
-    # recent_files()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Recycle Bin Files Parser Module")
-    # recycle_bin()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Shellbags Parser Module")
-    # shellbags()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Registry Parser Module")
-    # registry()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Windows Event Logs Parser Module")
-    # event_logs()
-    # time.sleep(1)
-    #
-    # print("[INFO] Started Windows Timeline Database Parser Module")
-    # windows_timeline()
-    #
-    # end_time = time.time()
-    #
-    # elapsed_time_seconds = end_time - start_time
-    # hours, remainder = divmod(elapsed_time_seconds, 3600)
-    # minutes, seconds = divmod(remainder, 60)
-    # formatted_time = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
-    # print(f"\nProgram execution time: {formatted_time}\n")
-    #
-    # print("Parsing Successfull. You can now close the window...")
+
+        directory_name = directory.split("\\")[-1]
+        os.mkdir(f"Results_{directory_name}")
+
+        amcache(directory)
+        time.sleep(1)
+
+        browser_data(directory)
+        time.sleep(1)
+
+        jumplist(directory)
+        time.sleep(1)
+
+        mft(directory)
+        time.sleep(1)
+
+        usnlog(directory)
+        time.sleep(1)
+
+        prefetch(directory)
+        time.sleep(1)
+
+        recent_files(directory)
+        time.sleep(1)
+
+        recycle_bin(directory)
+        time.sleep(1)
+
+        shellbags(directory)
+        time.sleep(1)
+
+        registry(directory)
+        time.sleep(1)
+
+        event_logs(directory)
+        time.sleep(1)
+
+    end_time = time.time()
+
+    elapsed_time_seconds = end_time - start_time
+    hours, remainder = divmod(elapsed_time_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    formatted_time = "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
+    print("---------------------------------------")
+    print(f"Program execution time: {formatted_time}")
+    print("---------------------------------------")
