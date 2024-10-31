@@ -84,7 +84,7 @@ To execute the tool, follow the steps below:
        Results_[DIRECTORY_NAME]
        ```
 
-By following these steps, you can efficiently run the Windows Artifact Parser and obtain comprehensive reports on the parsed Windows artifacts.
+By following these steps, you can efficiently run the Windows Artifact Parser and obtain comprehensive reports on the parsed Windows artifacts. **Download the executable from [Releases](https://github.com/SanketBaraiya/WAP/releases) Page.**
 
 ***Currently tested with following collections:***
 - [CyLR](https://github.com/orlikoski/CyLR)
