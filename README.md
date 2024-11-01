@@ -86,6 +86,8 @@ To execute the tool, follow the steps below:
 
 By following these steps, you can efficiently run the Windows Artifact Parser and obtain comprehensive reports on the parsed Windows artifacts. **Download the executable from [Releases](https://github.com/SanketBaraiya/WAP/releases) Page.**
 
+**Note:** Some binaries used to parse the artifacts are unsigned and may be flagged by your AV. So please make sure that the tool is executed in environment where the binaries are not removed by AV, for proper execution.
+
 ***Currently tested with following collections:***
 - [CyLR](https://github.com/orlikoski/CyLR)
 - [Magnet Response](https://www.magnetforensics.com/resources/magnet-response/)
